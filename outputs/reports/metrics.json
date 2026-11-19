@@ -1,0 +1,13 @@
+{
+  "total_records": 7404,
+  "passing_records": 7404,
+  "failed_records": 0,
+  "validation_pass_rate": 1.0,
+  "min_pass_rate_threshold": 0.95,
+  "primary_key_unique": true,
+  "duplicate_primary_keys": 0,
+  "critical_null_violations": 0,
+  "negative_duration_violations": 0,
+  "out_of_bounds_coordinate_violations": 0,
+  "quality_gate_passed": true
+}

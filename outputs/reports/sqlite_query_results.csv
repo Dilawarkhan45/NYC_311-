@@ -1,0 +1,6 @@
+borough_name,census_population,land_area_sq_mi,total_service_requests,requests_per_10k_residents,avg_resolution_hours,pct_exceeding_24h_sla
+BRONX,1472654,42.1,1476,10.02,181.03,61.38
+MANHATTAN,1694251,22.83,1430,8.44,239.58,46.01
+BROOKLYN,2736074,70.82,2298,8.4,238.41,51.17
+STATEN ISLAND,495747,58.37,404,8.15,102.49,55.45
+QUEENS,2405464,108.53,1796,7.47,242.85,44.32
