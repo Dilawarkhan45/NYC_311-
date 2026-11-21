@@ -1,9 +1,4 @@
-# NYC 311 Reproducible Data Quality & Insights Pipeline (Part A)
-
-**Author:** Dilawar khan  
-**Roll Number:** TRN-2026-000961  
-**Date:** 17 Nov 2026  
-**Assignment:** Reproducible Data Pipelines, Tabular ML & Systems Exploration (Part A: Checkpoints 0 – 3)  
+# NYC 311  
 
 ---
 
