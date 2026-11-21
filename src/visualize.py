@@ -1,15 +1,16 @@
-# Name: Warisha / Data Engineering Student
-# Roll Number: 2026-DS-0142
-# Date: November 19, 2026
+# Name: Dilawar khan
+# Roll Number: TRN-2026-000961
+# Date: 17 Nov 2026
 
 """
-Visualization Module for NYC 311 Service Requests.
-Generates four publication-quality figures saved into outputs/figures/:
-1. Top 10 Complaint Types Volume & Share
-2. Borough Resolution Time Disparities
-3. Diurnal / Hourly Intake Demand Profile
-4. Channel Distribution by Responding Agency
-Each figure contains a clear title, fully labelled axes with units, and a descriptive caption.
+Visualization Module for NYC 311 Service Requests (Part A).
+Dataset: NYC Open Data 311 Service Requests (2010 - 2019)
+
+Generates publication-grade figures saved to outputs/figures/:
+1. Figure 1: Top 10 Complaint Types Volume & Share.
+2. Figure 2: Resolution Hours Across Boroughs (Median & Mean in Hours).
+3. Figure 3: Diurnal / Hourly Distribution of Ticket Volume (Hour of Day [0-23]).
+4. Figure 4: Distribution of Log(1 + Resolution Hours) showing skew and outliers.
 """
 
 import os
@@ -18,18 +19,17 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 
-# Set standard styling
 plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.size"] = 10
 
 def generate_visualizations(df: pd.DataFrame, output_dir: str = "outputs/figures") -> list:
     """
-    Generates and saves at least 3 distinct visualizations with titles, units, and captions.
+    Renders and saves publication-grade figures with clear titles, units, and descriptions.
     
     Parameters:
-        df (pd.DataFrame): Cleaned and feature-engineered dataframe.
-        output_dir (str): Destination directory for image files.
+        df (pd.DataFrame): Cleaned and enriched dataframe.
+        output_dir (str): Directory where figures will be stored.
         
     Returns:
         list: Filepaths of generated figures.
@@ -42,15 +42,14 @@ def generate_visualizations(df: pd.DataFrame, output_dir: str = "outputs/figures
     # -------------------------------------------------------------------------
     plt.figure(figsize=(10, 6))
     top_complaints = df["complaint_type"].value_counts().head(10)
-    bars = plt.barh(top_complaints.index[::-1], top_complaints.values[::-1], color="#2b5c8f", edgecolor="black")
-    plt.title("Top 10 NYC 311 Service Request Complaint Types (December 2019)", fontsize=13, weight="bold", pad=12)
+    bars = plt.barh(top_complaints.index[::-1], top_complaints.values[::-1], color="#1f77b4", edgecolor="black")
+    plt.title("Top 10 NYC 311 Service Request Complaint Types (2010 - 2019)", fontsize=13, weight="bold", pad=12)
     plt.xlabel("Total Service Requests (Count / Volume)", fontsize=11, labelpad=8)
     plt.ylabel("Complaint Category", fontsize=11, labelpad=8)
     
-    # Annotate bar counts
     for bar in bars:
         w = bar.get_width()
-        plt.text(w + 20, bar.get_y() + bar.get_height()/2.0, f"{int(w):,}", va="center", fontsize=9)
+        plt.text(w + max(top_complaints.values)*0.01, bar.get_y() + bar.get_height()/2.0, f"{int(w):,}", va="center", fontsize=9)
         
     plt.xlim(0, max(top_complaints.values) * 1.15)
     plt.tight_layout()
@@ -60,23 +59,28 @@ def generate_visualizations(df: pd.DataFrame, output_dir: str = "outputs/figures
     generated_files.append(fig1_path)
     
     # -------------------------------------------------------------------------
-    # Figure 2: Borough Median Resolution Duration
+    # Figure 2: Borough Resolution Duration Disparities (Median vs Mean)
     # -------------------------------------------------------------------------
-    plt.figure(figsize=(9, 5.5))
-    valid_durations = df.dropna(subset=["resolution_time_hours"])
-    borough_medians = valid_durations.groupby("borough")["resolution_time_hours"].median().sort_values(ascending=False)
+    plt.figure(figsize=(10, 6))
+    valid_durations = df.dropna(subset=["resolution_hours"])
+    b_stats = valid_durations.groupby("borough")["resolution_hours"].agg(["median", "mean"]).sort_values(by="median", ascending=False)
     
-    colors = ["#c0392b", "#d35400", "#e67e22", "#27ae60", "#2980b9"]
-    bars2 = plt.bar(borough_medians.index, borough_medians.values, color=colors[:len(borough_medians)], edgecolor="black")
-    plt.title("Median Service Request Resolution Duration Across NYC Boroughs", fontsize=13, weight="bold", pad=12)
+    x = np.arange(len(b_stats))
+    width = 0.35
+    
+    rects1 = plt.bar(x - width/2, b_stats["median"], width, label="Median Duration", color="#2ca02c", edgecolor="black")
+    rects2 = plt.bar(x + width/2, b_stats["mean"], width, label="Mean Duration", color="#d62728", edgecolor="black")
+    
+    plt.title("NYC 311 Ticket Resolution Duration by Borough (Median vs Mean Hours)", fontsize=13, weight="bold", pad=12)
     plt.xlabel("Borough Name", fontsize=11, labelpad=8)
-    plt.ylabel("Median Resolution Duration (Hours)", fontsize=11, labelpad=8)
+    plt.ylabel("Resolution Duration (Hours)", fontsize=11, labelpad=8)
+    plt.xticks(x, b_stats.index)
+    plt.legend(frameon=True)
     
-    for bar in bars2:
-        h = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2.0, h + 0.8, f"{h:.1f} hrs", ha="center", fontsize=10, weight="bold")
+    for rect in rects1:
+        h = rect.get_height()
+        plt.text(rect.get_x() + rect.get_width()/2.0, h + 5, f"{h:.1f}h", ha="center", fontsize=9, weight="bold")
         
-    plt.ylim(0, max(borough_medians.values) * 1.2)
     plt.tight_layout()
     fig2_path = os.path.join(output_dir, "figure2_borough_resolution_distribution.png")
     plt.savefig(fig2_path, dpi=300)
@@ -84,16 +88,16 @@ def generate_visualizations(df: pd.DataFrame, output_dir: str = "outputs/figures
     generated_files.append(fig2_path)
     
     # -------------------------------------------------------------------------
-    # Figure 3: Hourly Intake Demand Curve
+    # Figure 3: Diurnal Ingestion Profile
     # -------------------------------------------------------------------------
     plt.figure(figsize=(10, 5))
     if "created_hour" in df.columns:
         hourly_counts = df["created_hour"].value_counts().sort_index()
-        plt.plot(hourly_counts.index, hourly_counts.values, marker="o", linewidth=2.5, color="#8e44ad", markersize=6)
-        plt.fill_between(hourly_counts.index, hourly_counts.values, color="#8e44ad", alpha=0.15)
-        plt.title("Diurnal Profile: Hourly Intake Volume of NYC 311 Service Requests", fontsize=13, weight="bold", pad=12)
+        plt.plot(hourly_counts.index, hourly_counts.values, marker="o", linewidth=2.5, color="#9467bd", markersize=6)
+        plt.fill_between(hourly_counts.index, hourly_counts.values, color="#9467bd", alpha=0.15)
+        plt.title("Diurnal Ingestion Profile: Hourly Volume of 311 Service Requests", fontsize=13, weight="bold", pad=12)
         plt.xlabel("Hour of Day (24-Hour Standard Time [00:00 - 23:00])", fontsize=11, labelpad=8)
-        plt.ylabel("Incoming Requests (Ticket Count)", fontsize=11, labelpad=8)
+        plt.ylabel("Incoming Service Requests (Ticket Count)", fontsize=11, labelpad=8)
         plt.xticks(range(0, 24, 2))
         plt.tight_layout()
         fig3_path = os.path.join(output_dir, "figure3_hourly_demand_profile.png")
@@ -102,24 +106,22 @@ def generate_visualizations(df: pd.DataFrame, output_dir: str = "outputs/figures
         generated_files.append(fig3_path)
         
     # -------------------------------------------------------------------------
-    # Figure 4: Model Target Class Distribution by Intake Channel
+    # Figure 4: Log-Transformed Resolution Hours Distribution
     # -------------------------------------------------------------------------
-    plt.figure(figsize=(9, 5.5))
-    if "open_data_channel_type" in df.columns and "is_long_resolution" in df.columns:
-        valid_channel = df.dropna(subset=["open_data_channel_type", "is_long_resolution"])
-        channel_cross = pd.crosstab(valid_channel["open_data_channel_type"], valid_channel["is_long_resolution"], normalize="index") * 100
-        
-        channel_cross.plot(kind="bar", stacked=True, color=["#27ae60", "#e74c3c"], figsize=(9, 5.5), edgecolor="black")
-        plt.title("Resolution Speed Classification (>24h vs <=24h) by Intake Channel", fontsize=13, weight="bold", pad=12)
-        plt.xlabel("Citizen Ingestion Channel Type", fontsize=11, labelpad=8)
-        plt.ylabel("Proportion of Requests (Percentage %)", fontsize=11, labelpad=8)
-        plt.legend(["Fast Resolution (<=24 hrs)", "Long Resolution (>24 hrs)"], loc="upper right")
-        plt.xticks(rotation=0)
+    plt.figure(figsize=(10, 5.5))
+    if "log_resolution_hours" in df.columns:
+        valid_log = df["log_resolution_hours"].dropna()
+        sns.histplot(valid_log, bins=40, kde=True, color="#ff7f0e", edgecolor="black")
+        plt.title("Distribution of Log(1 + Resolution Hours) Regression Target", fontsize=13, weight="bold", pad=12)
+        plt.xlabel("Log(1 + Resolution Duration in Hours)", fontsize=11, labelpad=8)
+        plt.ylabel("Frequency (Number of Service Requests)", fontsize=11, labelpad=8)
+        plt.axvline(valid_log.median(), color="red", linestyle="--", linewidth=2, label=f"Median Log-Duration: {valid_log.median():.2f}")
+        plt.legend(frameon=True)
         plt.tight_layout()
-        fig4_path = os.path.join(output_dir, "figure4_channel_resolution_breakdown.png")
+        fig4_path = os.path.join(output_dir, "figure4_resolution_skew_log.png")
         plt.savefig(fig4_path, dpi=300)
         plt.close()
         generated_files.append(fig4_path)
         
-    print(f"[SUCCESS] Saved {len(generated_files)} publication-grade figures to: {output_dir}")
+    print(f"[SUCCESS] Saved {len(generated_files)} figures to: {output_dir}")
     return generated_files

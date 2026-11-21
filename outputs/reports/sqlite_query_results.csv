@@ -1,6 +1,6 @@
-borough_name,census_population,land_area_sq_mi,total_service_requests,requests_per_10k_residents,avg_resolution_hours,pct_exceeding_24h_sla
-BRONX,1472654,42.1,1476,10.02,181.03,61.38
-MANHATTAN,1694251,22.83,1430,8.44,239.58,46.01
-BROOKLYN,2736074,70.82,2298,8.4,238.41,51.17
-STATEN ISLAND,495747,58.37,404,8.15,102.49,55.45
-QUEENS,2405464,108.53,1796,7.47,242.85,44.32
+borough_name,census_population,land_area_sq_mi,total_service_requests,requests_per_10k_residents,avg_resolution_hours,pct_zero_duration_tickets
+BRONX,1472654,42.1,4188,28.44,234.09,2.41
+MANHATTAN,1694251,22.83,4039,23.84,565.48,2.75
+BROOKLYN,2736074,70.82,5746,21.0,319.53,1.71
+QUEENS,2405464,108.53,3035,12.62,378.93,1.25
+STATEN ISLAND,495747,58.37,494,9.96,335.55,3.24

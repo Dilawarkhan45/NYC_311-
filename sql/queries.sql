@@ -1,32 +1,26 @@
 -- ============================================================================
--- Name: Warisha / Data Engineering Student
--- Roll Number: 2026-DS-0142
--- Date: November 19, 2026
+-- Name: Dilawar khan
+-- Roll Number: TRN-2026-000961
+-- Date: 17 Nov 2026
 --
--- SQLite Queries for NYC 311 Service Requests Analysis
--- Features:
--- 1. Table schema definitions for cleaned tickets and borough demographics lookup
--- 2. Analytical relational JOIN between tickets and borough_lookup
--- 3. Aggregations (COUNT, AVG, SUM CASE) to compute per-capita service demand
---    and SLA breach rates (>24h resolution) across New York City boroughs.
+-- SQLite Relational Queries for NYC 311 Service Requests (Part A)
+-- Evaluates per-capita service demand and resolution duration across boroughs
+-- by joining cleaned tickets with Census demographic lookup tables.
 -- ============================================================================
 
--- Query 1: Normalized Borough Service Demand and SLA Compliance Rate
--- Business Question:
--- How does 311 service request intensity normalize per 10,000 residents across
--- NYC boroughs, and does higher request density correlate with longer resolution times?
-
+-- Query 1: Normalized Borough Civic Demand and Resolution Performance
+-- Relational JOIN between tickets and borough_lookup
 SELECT 
     b.borough AS borough_name,
     b.population AS census_population,
     b.land_area_sq_mi,
     COUNT(t.unique_key) AS total_service_requests,
     ROUND((COUNT(t.unique_key) * 10000.0) / b.population, 2) AS requests_per_10k_residents,
-    ROUND(AVG(t.resolution_time_hours), 2) AS avg_resolution_hours,
+    ROUND(AVG(t.resolution_hours), 2) AS avg_resolution_hours,
     ROUND(
-        SUM(CASE WHEN t.is_long_resolution = 1 THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(t.unique_key),
+        SUM(CASE WHEN t.is_zero_duration = 1 THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(t.unique_key),
         2
-    ) AS pct_exceeding_24h_sla
+    ) AS pct_zero_duration_tickets
 FROM borough_lookup b
 INNER JOIN tickets t ON b.borough = t.borough
 GROUP BY 
@@ -36,21 +30,16 @@ GROUP BY
 ORDER BY 
     requests_per_10k_residents DESC;
 
--- Query 2: Top Agency Workload and Escalation Analysis by Borough
+-- Query 2: Workload Breakdown by Responding Municipal Agency
 SELECT 
     t.agency,
-    t.borough,
-    COUNT(t.unique_key) AS request_count,
-    ROUND(AVG(t.resolution_time_hours), 2) AS avg_duration_hours,
-    ROUND(
-        SUM(CASE WHEN t.is_long_resolution = 1 THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(t.unique_key),
-        2
-    ) AS pct_long_tickets
+    COUNT(t.unique_key) AS total_tickets,
+    ROUND(AVG(t.resolution_hours), 2) AS avg_resolution_hours,
+    COUNT(DISTINCT t.complaint_type) AS distinct_complaint_types
 FROM tickets t
 GROUP BY 
-    t.agency, 
-    t.borough
+    t.agency
 HAVING 
-    COUNT(t.unique_key) >= 50
+    COUNT(t.unique_key) >= 100
 ORDER BY 
-    request_count DESC;
+    total_tickets DESC;

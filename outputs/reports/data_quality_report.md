@@ -1,34 +1,52 @@
-# NYC 311 Data Quality & Ingestion Audit Report
-**Audit Timestamp:** 2026-11-19 21:25:09
-**Target Dataset:** NYC Open Data 311 Service Requests (`76ig-c548`)
+# NYC 311 Service Requests: Data Quality & Audit Report (Part A)
 
-## 1. Executive Quality Summary
+**Author:** Dilawar khan  
+**Roll Number:** TRN-2026-000961  
+**Date:** 17 Nov 2026  
+**Dataset:** NYC Open Data 311 Service Requests (`76ig-c548`)  
+**Audit Execution Time:** 2026-11-21 23:25:05  
 
-| Metric Dimension | Raw Input Value | Cleaned Output Value | Net Change / Action |
+---
+
+## 1. Executive Quality Summary (Before vs. After Cleaning)
+
+| Problem / Dimension | Raw Ingested Count (%) | Cleaned Dataset Count (%) | Handling Strategy |
 | :--- | :--- | :--- | :--- |
-| **Total Records** | 7,500 | 7,404 | -96 (1.28% rejected) |
-| **Total Missing Values** | 99,402 (30.12%) | 97,844 (25.41%) | Significant reduction in core features |
-| **Primary Key Duplicates** | 0 | 0 | Strict 100% uniqueness enforced |
-| **Negative Durations** | 61 | 0 | Invalid chronological errors purged |
-| **Unspecified Boroughs** | 31 | 0 | Standardized to valid NYC boroughs |
+| **Total Records** | 20,000 (100.0%) | 17,502 (87.51%) | Pruned unserviceable/corrupted records |
+| **Closed Before Created (Negative)** | 10 (0.050%) | 0 (0.00%) | Saved to `rejected_rows.csv` with reason |
+| **Zero Duration Requests** | 375 (1.88%) | 364 (2.08%) | Kept and flagged with `is_zero_duration` |
+| **Open Tickets (Missing closed_date)** | 517 (2.58%) | 392 (2.24%) | Reported as limitation; kept in cleaned master |
+| **Unspecified / Missing Boroughs** | 2,488 (12.44%) | 0 (0.00%) | Filtered to enable jurisdictional analysis |
+| **Sparse Location (Missing Lat/Lon)** | 435 (2.17%) | 365 (2.09%) | Preserved with missingness indicator |
+| **Duplicate Primary Keys** | 0 (0.00%) | 0 (0.00%) | Uniqueness verified 100% |
 | **Quality Gate Pass Rate** | 100.00% | 100.00% | Exceeds 95.0% SLA Threshold |
 
-## 2. Field-Level Missingness Audit (Core Features)
+---
 
-| Field Name | Raw Missing % | Cleaned Missing % | Treatment Strategy |
-| :--- | :--- | :--- | :--- |
-| `unique_key` | 0.00% | 0.00% | Required / No nulls allowed |
-| `created_date` | 0.00% | 0.00% | Required / No nulls allowed |
-| `closed_date` | 1.48% | 1.50% | Retained / Handled in pipeline |
-| `agency` | 0.00% | 0.00% | Retained / Handled in pipeline |
-| `complaint_type` | 0.00% | 0.00% | Required / No nulls allowed |
-| `borough` | 0.05% | 0.00% | Required / No nulls allowed |
-| `latitude` | 2.84% | 1.89% | Retained / Handled in pipeline |
-| `longitude` | 2.84% | 1.89% | Retained / Handled in pipeline |
-| `incident_zip` | 2.40% | 1.45% | Retained / Handled in pipeline |
+## 2. Missing Values Audit per Core Column
 
-## 3. Assumptions and Cleaning Decisions
-- **Chronological Integrity:** Records where resolution occurred prior to ticket creation are treated as corrupted data entry and excluded.
-- **Borough Boundary Enforcement:** Non-NYC locations or unassigned boroughs ('Unspecified') cannot be routed to local municipal services and are pruned.
-- **Duration Capping:** Durations greater than 8,760 hours (1 year) are capped to prevent distortion of summary means while retaining ticket frequency.
-- **Imputation Philosophy:** Spatial coordinates are preserved with missing indicators for tabular imputation rather than indiscriminate row dropping.
+| Column Name | Raw Missing Count | Raw Missing % | Cleaned Missing Count | Cleaned Missing % | Treatment |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `unique_key` | 0 | 0.00% | 0 | 0.00% | Zero nulls enforced |
+| `created_date` | 0 | 0.00% | 0 | 0.00% | Zero nulls enforced |
+| `closed_date` | 517 | 2.58% | 392 | 2.24% | Retained for downstream modeling |
+| `agency` | 0 | 0.00% | 0 | 0.00% | Retained for downstream modeling |
+| `complaint_type` | 0 | 0.00% | 0 | 0.00% | Zero nulls enforced |
+| `borough` | 1 | 0.01% | 0 | 0.00% | Zero nulls enforced |
+| `incident_zip` | 369 | 1.85% | 300 | 1.71% | Retained for downstream modeling |
+| `latitude` | 435 | 2.17% | 365 | 2.09% | Retained for downstream modeling |
+| `longitude` | 435 | 2.17% | 365 | 2.09% | Retained for downstream modeling |
+
+---
+
+## 3. Rejected Records Accounting
+- **Rejected Count:** 10 records rejected due to negative duration timestamps.
+- **Destination Artifact:** [`outputs/reports/rejected_rows.csv`](rejected_rows.csv)
+- **Rejection Criterion:** Records where `closed_date < created_date` violate chronological reality and indicate data entry error.
+
+---
+
+## 4. Key Limitations & Assumptions
+1. **Right-Censored Active Tickets:** Open requests lack completion timestamps. Removing them from regression training can bias model towards faster resolution, which is documented as a model limitation.
+2. **Severe Right Skew:** Resolution times span from minutes to multi-year backlogs; log(1 + hours) is applied to ensure numerical stability.
+3. **Reporting Disparities:** Digital divide across boroughs affects mobile app usage vs phone hotlines.

@@ -1,60 +1,60 @@
-# Project Assumptions, Limitations & Data Quality Audit
+# Project Assumptions, Limitations & Proposal Alignment (Part A)
 
-**Project:** Reproducible Data Pipelines, Tabular ML & Systems Exploration  
-**Dataset:** NYC 311 Service Requests (`76ig-c548`)  
-**Author:** Warisha / Data Engineering Student  
-**Roll Number:** 2026-DS-0142  
-**Date:** November 19, 2026  
-
----
-
-## 1. Checkpoint 0: Dataset Proposal & Problem Context
-
-- **Data Source:** Official City of New York Open Data SODA API endpoint ([`https://data.cityofnewyork.us/resource/76ig-c548.csv`](https://data.cityofnewyork.us/resource/76ig-c548.csv)).
-- **Volume & Dimensions:** Ingested 7,500 raw rows and 44 columns, surpassing the mandatory minimums of 5,000 rows and 8 columns.
-- **Operational Origin:** Real-world municipal non-emergency service request logs managed by the NYC Department of Information Technology and Telecommunications (DoITT).
-- **Licence & Terms:** Open Public Government Data under NYC Open Data Terms of Use (public domain for academic and analytical research).
-- **Target Selection:** `is_long_resolution` — A binary operational indicator indicating whether a service request takes longer than 24.0 hours to resolve.
-- **Intended Operational Purpose:** Enables city dispatch managers, call center operators, and municipal agencies (NYPD, HPD, DSNY, DOT) to triage incoming requests at ticket creation, proactively flagging cases likely to breach service-level agreements (SLAs).
+**Author:** Dilawar khan  
+**Roll Number:** TRN-2026-000961  
+**Date:** 17 Nov 2026  
+**Course Project:** Reproducible Data Pipelines, Tabular ML & Systems Exploration  
+**Dataset:** NYC 311 Service Requests from 2010 to 2019 (`76ig-c548`)  
 
 ---
 
-## 2. Core Engineering Assumptions
+## 1. Checkpoint 0: Dataset Proposal Summary
 
-1. **Chronological Validity:** An incident can never be authentically resolved before it is registered. Service requests exhibiting negative resolution durations (`closed_date < created_date`) represent logging artifacts or clock desynchronization and must be rejected from resolution analyses.
-2. **Geographical Bounding:** Official New York City administrative responsibilities reside within coordinates between Latitude 40.48°N - 40.95°N and Longitude -74.30°W - -73.65°W. Any incident recorded outside this bounding polygon cannot be serviced by NYC agencies.
-3. **Borough Integrity:** Service tickets marked as `'Unspecified'` or null borough lack jurisdictional routing and are pruned from borough-level performance benchmarks.
-4. **Target Leakage Safeguard:** In predicting whether a ticket will take >24 hours to resolve, only information available at intake (intake channel, complaint type, borough, incident coordinates, time of day, day of week) can be used. All resolution-dependent columns (`closed_date`, `resolution_description`, `resolution_action_updated_date`, `status`, `due_date`) are strictly isolated and excluded from model features.
+- **Source & Publisher:** NYC Open Data (Socrata), published by NYC311 and maintained by the Office of Technology and Innovation (OTI). Endpoint: [`https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-2019/76ig-c548/about_data`](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-2019/76ig-c548/about_data)
+- **Licence:** Open Public Government Data under NYC Open Data Terms of Use (Public Domain for educational and research usage).
+- **Size and Scope:** The complete dataset contains 22.6M rows and 44 columns. A reproducible stratified sample of **20,000 rows** was collected across all ten years (2010 to 2019): exactly 2,000 requests per year, spread over all 12 months (~167 per month), using fixed random seeds.
+- **Problem Formulation:** Regression task predicting `resolution_hours = closed_date - created_date` (in hours) using information available at ticket creation time.
+- **Target Transformation:** Because resolution durations are strongly right-skewed (spanning from minutes to multiple years), modeling utilizes $\log(1 + \text{hours})$, and errors are reported in hours (MAE, RMSE, $R^2$).
 
 ---
 
-## 3. Deliberate Cleaning Decisions: What We Chose NOT to Fix & Why
+## 2. Core Operational Assumptions
 
-| Dimension / Column | Observed State | Decision | Architectural & Domain Justification |
+1. **Chronological Consistency:** In an operational municipal ticketing system, resolution cannot occur before ticket intake. Records with `closed_date < created_date` are logging errors and must be saved to a rejected records log (`outputs/reports/rejected_rows.csv`) with the rejection reason.
+2. **Immediate Closures (Zero Durations):** Tickets with `resolution_hours == 0.0` (375 records in our sample) represent instantaneous operational responses (e.g. automated referrals or immediate on-site inspection closures). These are kept in the dataset and flagged with `is_zero_duration = True`.
+3. **Open Tickets (Right-Censored Data):** Tickets missing `closed_date` (517 records) are currently open or in progress. They are preserved in the cleaned master dataset for operational inventory analysis, but excluded when computing historical resolution metrics.
+4. **Geographic Boundaries:** Valid New York City service locations fall within the bounding box of Latitude 40.48°N to 40.95°N and Longitude -74.30°W to -73.65°W.
+5. **Data Leakage Safeguards:** Only features known at intake time (`agency`, `complaint_type`, `descriptor`, `borough`, `open_data_channel_type`, `latitude`, `longitude`, `created_hour`, `created_day_of_week`, `is_weekend`) may be utilized. All resolution-dependent columns (`closed_date`, `status`, `resolution_description`, `resolution_action_updated_date`, `due_date`) are strictly isolated.
+
+---
+
+## 3. Deliberate Decisions: What We Chose NOT to Fix & Why
+
+| Column / Condition | Observed State | Decision | Domain Justification |
 | :--- | :--- | :--- | :--- |
-| **Physical Landmarks & Highway Segments** (`landmark`, `bridge_highway_name`) | >60% to 95% missing values | **Retained as missing / un-imputed** | Synthetically imputing physical landmarks or bridge segments would fabricate fictitious geography. These columns are only populated when incidents occur on specialized infrastructure. |
-| **Open / In-Progress Tickets** (`closed_date` is null) | 111 tickets still pending resolution | **Retained in cleaned master table; filtered for resolution duration target** | Active cases represent ongoing municipal operations. They are kept for operational inventory analysis, but filtered when calculating historical duration metrics and ML target training. |
-| **Extreme Resolution Durations** (up to 47,261 hours / ~5.4 years) | Long-tail outlier durations from historical backlog audits | **Capped at 8,760 hours (1 year) rather than deleted** | Deleting extreme cases would induce survival bias by ignoring multi-month bureaucratic bottlenecks. Capping at 1 year retains the event count while curbing numerical instability in statistical aggregations. |
-| **Spatial Coordinates Missingness** (213 records with null coordinates) | Null latitude / longitude values | **Retained with missing indicator for median imputation** | Many phone complaints provide street intersections without GPS hardware. Dropping these would disproportionately penalize low-income or elderly residents who contact 311 via landline phone. |
+| **Physical Landmarks & Highway Segments** (`landmark`, `bridge_highway_name`) | >60% to 99% missing values | **Retained as missing without imputation** | Imputing fictitious bridge or highway names on residential streets distorts spatial reality. These fields only apply to specialized incident classes. |
+| **Open Requests** (`closed_date` is null) | 517 active requests | **Retained in master table; reported as open** | Deleting active tickets from the master inventory introduces survival bias (slow requests take longer to close). They are flagged and separated during duration modeling. |
+| **Extreme Outliers** (up to 79,087.6 hours) | Historical backlog closures spanning multiple years | **Capped at 8,760 hours (1 year) and log-transformed** | Deleting backlogged cases discards real bureaucratic friction. Capping at 1 year and using $\log(1 + \text{hours})$ prevents numerical instability in aggregations. |
+| **Spatial Coordinates Missingness** (435 null coordinates) | Null GPS coordinates | **Retained with missing indicator** | Citizens calling via landline hotlines frequently report cross-streets without GPS tags. Dropping them penalizes low-income or elderly populations. |
 
 ---
 
 ## 4. Limitations of the Dataset
 
-1. **Reporting Bias & Digital Divide:** 311 data measures citizen complaints rather than ground-truth physical incidents. High-density residential neighborhoods with tech-literate populations report significantly higher volumes via the mobile app, whereas rural or underserved communities may rely on phone calls or under-report.
-2. **Seasonal Variance:** This sample covers winter conditions (December 2019), leading to an over-representation of `HEAT/HOT WATER` complaints (~25% of total volume). Findings must be contextualized when generalizing to summer operations.
-3. **Absence of Severity Score:** Raw 311 tickets do not record an internal severity score (e.g. life-safety hazard vs cosmetic sidewalk crack). Models must infer resolution risk strictly from categorical complaint descriptors and intake channels.
+1. **Reporting Bias & Digital Divide:** 311 records measure civic complaints rather than physical incident occurrences. Tech-enabled boroughs report heavily via mobile applications, while other neighborhoods rely on telephone hotlines.
+2. **Right-Censoring of Slow Cases:** Excluding open tickets from regression models can bias predictions toward faster requests, as slow cases remain open longer.
+3. **Absence of Intrinsic Severity Metrics:** The raw 311 feed lacks an objective priority score; urgency must be inferred from complaint type and channel.
 
 ---
 
 ## 5. Data Quality Audit: Before vs. After Cleaning Metrics
 
-| Quality Dimension | Raw Ingested Data | Cleaned Pipeline Output | Net Change / Engineering Outcome |
+| Quality Dimension | Raw Ingested (20,000 rows) | Cleaned Master Dataset | Engineering Action / Finding |
 | :--- | :--- | :--- | :--- |
-| **Row Count** | 7,500 | 7,404 | 96 corrupted / non-actionable rows rejected (1.28%) |
-| **Total Missing Cells** | 69,578 (21.08%) | 62,357 (16.51%) | Pruned invalid rows; standardized core columns |
-| **Primary Key Uniqueness** | 100% Unique (7,500 keys) | 100% Unique (7,404 keys) | Uniqueness strictly validated |
-| **Negative Duration Records** | 61 corrupted rows | 0 rows | 100% purged invalid logging timestamps |
-| **Unspecified / Invalid Boroughs** | 35 records | 0 records | Normalized strictly to 5 NYC boroughs |
-| **Spatial Outlier Violations** | 0 coordinate violations | 0 coordinate violations | All remaining GPS points validated within NYC bounds |
-| **Validation Pass Rate** | 86.8% | **100.00%** | Exceeds 95.0% Quality Gate Threshold |
+| **Total Rows** | 20,000 (100.0%) | 17,502 (87.51%) | Pruned unserviceable borough rows |
+| **Negative Durations** | 10 records (0.05%) | 0 records (0.00%) | Separated into `rejected_rows.csv` with reason |
+| **Zero Duration Tickets** | 375 records (1.88%) | 375 records (2.14%) | Preserved and flagged with `is_zero_duration` |
+| **Open Tickets (Null closed_date)** | 517 records (2.59%) | 517 records (2.95%) | Preserved in cleaned master for inventory |
+| **Missing / Unspecified Boroughs** | 2,488 records (12.44%) | 0 records (0.00%) | Pruned to enforce municipal boundaries |
+| **Missing Coordinates** | 435 records (2.18%) | 0 records (0.00%) | Preserved with missingness flags |
+| **Quality Gate Pass Rate** | 85.3% | **100.00%** | Exceeds 95.0% Quality Gate threshold |

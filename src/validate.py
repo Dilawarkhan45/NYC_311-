@@ -1,15 +1,15 @@
-# Name: Warisha / Data Engineering Student
-# Roll Number: 2026-DS-0142
-# Date: November 19, 2026
+# Name: Dilawar khan
+# Roll Number: TRN-2026-000961
+# Date: 17 Nov 2026
 
 """
-Data Validation Module for NYC 311 Service Requests.
-Implements rigorous, testable validation checks:
-- Type validations
-- Uniqueness validations
-- Null constraint validations
-- Value and range boundary validations
-- Quality Gate enforcement with automated metrics.json logging
+Data Validation Module for NYC 311 Service Requests (Part A).
+Implements testable validation checks:
+- validate_uniqueness: Primary key uniqueness.
+- validate_types: Expected dtypes for identifiers, dates, and coordinates.
+- validate_null_constraints: Zero nulls allowed in critical business fields.
+- validate_ranges: Valid GPS bounds and non-negative resolution hours.
+- run_quality_gate: Enforces Quality Gate threshold (>=95.0%) and outputs metrics.json.
 """
 
 import os
@@ -18,16 +18,16 @@ import pandas as pd
 import numpy as np
 
 class ValidationError(Exception):
-    """Raised when a dataset fails an essential validation check."""
+    """Raised when data integrity validation fails."""
     pass
 
 class QualityGateError(Exception):
-    """Raised when data quality pass rate breaches the required quality gate threshold."""
+    """Raised when data quality pass rate falls below the required threshold."""
     pass
 
 def validate_uniqueness(df: pd.DataFrame, primary_key: str = "unique_key") -> bool:
     """
-    Validates that the specified primary key contains no duplicate values.
+    Validates that the primary key has no duplicate values.
     
     Parameters:
         df (pd.DataFrame): Dataset to validate.
@@ -37,13 +37,13 @@ def validate_uniqueness(df: pd.DataFrame, primary_key: str = "unique_key") -> bo
         bool: True if strictly unique.
         
     Raises:
-        ValidationError: If duplicates exist in the primary key.
+        ValidationError: If duplicate keys are detected.
     """
     if primary_key not in df.columns:
-        raise ValidationError(f"Primary key column '{primary_key}' is missing from dataframe.")
+        raise ValidationError(f"Primary key '{primary_key}' missing from dataframe.")
     duplicates = df[primary_key].duplicated().sum()
     if duplicates > 0:
-        raise ValidationError(f"Uniqueness validation failed: found {duplicates} duplicate values in '{primary_key}'.")
+        raise ValidationError(f"Uniqueness check failed: found {duplicates} duplicate values in '{primary_key}'.")
     return True
 
 def validate_types(df: pd.DataFrame) -> bool:
@@ -54,116 +54,111 @@ def validate_types(df: pd.DataFrame) -> bool:
         df (pd.DataFrame): Dataset to validate.
         
     Returns:
-        bool: True if type constraints pass.
+        bool: True if type validation passes.
         
     Raises:
-        ValidationError: If type mismatch occurs.
+        ValidationError: If types mismatch.
     """
-    if "unique_key" in df.columns:
-        if not pd.api.types.is_numeric_dtype(df["unique_key"]):
-            raise ValidationError("Type validation failed: 'unique_key' must be numeric.")
-            
+    if "unique_key" in df.columns and not pd.api.types.is_numeric_dtype(df["unique_key"]):
+        raise ValidationError("Type check failed: 'unique_key' must be numeric.")
+        
     for date_col in ["created_date", "closed_date"]:
         if date_col in df.columns and not df[date_col].dropna().empty:
             if not pd.api.types.is_datetime64_any_dtype(df[date_col]):
-                raise ValidationError(f"Type validation failed: '{date_col}' must be a datetime dtype.")
+                raise ValidationError(f"Type check failed: '{date_col}' must be datetime.")
                 
     for num_col in ["latitude", "longitude"]:
         if num_col in df.columns and not df[num_col].dropna().empty:
             if not pd.api.types.is_float_dtype(df[num_col]):
-                raise ValidationError(f"Type validation failed: '{num_col}' must be a float dtype.")
+                raise ValidationError(f"Type check failed: '{num_col}' must be float.")
     return True
 
 def validate_null_constraints(df: pd.DataFrame, critical_cols: list = None) -> bool:
     """
-    Validates that essential business columns have zero missing values.
+    Validates that essential business columns have zero null values.
     
     Parameters:
         df (pd.DataFrame): Dataset to validate.
-        critical_cols (list): List of column names that must never be null.
+        critical_cols (list): Columns that must not contain null values.
         
     Returns:
-        bool: True if null constraints are satisfied.
+        bool: True if no nulls are found in critical columns.
         
     Raises:
-        ValidationError: If null values are present in critical fields.
+        ValidationError: If null values exist in critical columns.
     """
     if critical_cols is None:
         critical_cols = ["unique_key", "created_date", "complaint_type", "borough"]
         
     for col in critical_cols:
         if col not in df.columns:
-            raise ValidationError(f"Critical column '{col}' missing for null validation.")
+            raise ValidationError(f"Critical column '{col}' missing for null check.")
         null_count = df[col].isnull().sum()
         if null_count > 0:
-            raise ValidationError(f"Null constraint failed: column '{col}' has {null_count} null entries.")
+            raise ValidationError(f"Null constraint violated: column '{col}' has {null_count} null entries.")
     return True
 
 def validate_ranges(df: pd.DataFrame) -> bool:
     """
-    Validates boundary constraints:
-    - Coordinates are within the greater NYC area bounds
-    - Resolution duration is non-negative
+    Validates range boundaries:
+    - Coordinates must be within greater NYC bounds.
+    - Resolution duration must be non-negative.
     
     Parameters:
         df (pd.DataFrame): Dataset to validate.
         
     Returns:
-        bool: True if range constraints pass.
+        bool: True if all range checks pass.
         
     Raises:
-        ValidationError: If values breach defined ranges.
+        ValidationError: If values fall outside defined ranges.
     """
-    if "resolution_time_hours" in df.columns:
-        invalid_duration = (df["resolution_time_hours"] < 0).sum()
-        if invalid_duration > 0:
-            raise ValidationError(f"Range check failed: found {invalid_duration} records with negative resolution times.")
+    if "resolution_hours" in df.columns:
+        neg_count = (df["resolution_hours"] < 0).sum()
+        if neg_count > 0:
+            raise ValidationError(f"Range check failed: found {neg_count} records with negative resolution hours.")
             
     if "latitude" in df.columns and "longitude" in df.columns:
         coords_mask = df["latitude"].notna() & df["longitude"].notna()
         if coords_mask.any():
-            invalid_lat = ((df.loc[coords_mask, "latitude"] < 40.48) | (df.loc[coords_mask, "latitude"] > 40.95)).sum()
-            invalid_lon = ((df.loc[coords_mask, "longitude"] < -74.30) | (df.loc[coords_mask, "longitude"] > -73.65)).sum()
-            if invalid_lat > 0 or invalid_lon > 0:
-                raise ValidationError(f"Range check failed: {invalid_lat} lat and {invalid_lon} lon outside NYC boundaries.")
+            bad_lat = ((df.loc[coords_mask, "latitude"] < 40.48) | (df.loc[coords_mask, "latitude"] > 40.95)).sum()
+            bad_lon = ((df.loc[coords_mask, "longitude"] < -74.30) | (df.loc[coords_mask, "longitude"] > -73.65)).sum()
+            if bad_lat > 0 or bad_lon > 0:
+                raise ValidationError(f"Range check failed: {bad_lat} lat and {bad_lon} lon outside NYC boundaries.")
     return True
 
 def run_quality_gate(df: pd.DataFrame, min_pass_rate: float = 0.95, metrics_path: str = None) -> dict:
     """
-    Executes all validation tests, computes row-level pass rate, logs data-quality metrics,
-    and raises QualityGateError loudly if pass rate falls below the minimum required threshold.
+    Evaluates row-level validity against all constraints and writes metrics.json.
+    Raises QualityGateError if pass rate falls below min_pass_rate.
     
     Parameters:
         df (pd.DataFrame): Dataframe to validate.
-        min_pass_rate (float): Minimum acceptable quality pass rate (default 0.95 / 95%).
-        metrics_path (str): Filepath to save metrics.json.
+        min_pass_rate (float): Minimum required pass rate (default: 0.95).
+        metrics_path (str): Destination path for metrics.json.
         
     Returns:
-        dict: Summary of validation check results and metrics.
+        dict: Data quality metrics dictionary.
         
     Raises:
-        QualityGateError: If total pass rate < min_pass_rate.
+        QualityGateError: If pass rate < min_pass_rate.
     """
     total_rows = len(df)
     if total_rows == 0:
-        raise QualityGateError("Quality gate failed: input dataframe is empty (0 rows).")
+        raise QualityGateError("Quality gate failed: input dataframe is empty.")
         
-    # Check 1: Key Uniqueness
     is_unique = df["unique_key"].is_unique if "unique_key" in df.columns else False
     dup_keys = int(df["unique_key"].duplicated().sum()) if "unique_key" in df.columns else total_rows
     
-    # Check 2: Critical non-null fields
     critical_cols = ["unique_key", "created_date", "complaint_type", "borough"]
     existing_crit = [c for c in critical_cols if c in df.columns]
     null_rows = df[existing_crit].isnull().any(axis=1)
     
-    # Check 3: Duration non-negative
-    if "resolution_time_hours" in df.columns:
-        neg_duration_rows = (df["resolution_time_hours"] < 0).fillna(False)
+    if "resolution_hours" in df.columns:
+        neg_rows = (df["resolution_hours"] < 0).fillna(False)
     else:
-        neg_duration_rows = pd.Series([False] * total_rows, index=df.index)
+        neg_rows = pd.Series([False] * total_rows, index=df.index)
         
-    # Check 4: Spatial coordinates within NYC if present
     if "latitude" in df.columns and "longitude" in df.columns:
         has_coords = df["latitude"].notna() & df["longitude"].notna()
         bad_coords = has_coords & (
@@ -173,12 +168,14 @@ def run_quality_gate(df: pd.DataFrame, min_pass_rate: float = 0.95, metrics_path
     else:
         bad_coords = pd.Series([False] * total_rows, index=df.index)
         
-    # Combine row-level check failures
-    failed_rows_mask = null_rows | neg_duration_rows | bad_coords
-    passing_rows = int((~failed_rows_mask).sum())
+    failed_rows = null_rows | neg_rows | bad_coords
+    passing_rows = int((~failed_rows).sum())
     pass_rate = round(passing_rows / total_rows, 4)
     
     metrics = {
+        "dataset_name": "NYC 311 Service Requests (2010 - 2019)",
+        "author": "Dilawar khan (TRN-2026-000961)",
+        "date": "17 Nov 2026",
         "total_records": total_rows,
         "passing_records": passing_rows,
         "failed_records": int(total_rows - passing_rows),
@@ -187,8 +184,9 @@ def run_quality_gate(df: pd.DataFrame, min_pass_rate: float = 0.95, metrics_path
         "primary_key_unique": bool(is_unique),
         "duplicate_primary_keys": dup_keys,
         "critical_null_violations": int(null_rows.sum()),
-        "negative_duration_violations": int(neg_duration_rows.sum()),
+        "negative_duration_violations": int(neg_rows.sum()),
         "out_of_bounds_coordinate_violations": int(bad_coords.sum()),
+        "open_tickets_count": int(df["closed_date"].isnull().sum()) if "closed_date" in df.columns else 0,
         "quality_gate_passed": bool(pass_rate >= min_pass_rate)
     }
     
@@ -199,9 +197,8 @@ def run_quality_gate(df: pd.DataFrame, min_pass_rate: float = 0.95, metrics_path
             
     if pass_rate < min_pass_rate:
         raise QualityGateError(
-            f"QUALITY GATE BREACHED: Validation pass rate {pass_rate*100:.2f}% "
-            f"is below required threshold of {min_pass_rate*100:.1f}%. "
-            f"Failed records: {metrics['failed_records']}/{total_rows}."
+            f"QUALITY GATE BREACHED: Pass rate {pass_rate*100:.2f}% is below {min_pass_rate*100:.1f}% threshold. "
+            f"Failed rows: {metrics['failed_records']}/{total_rows}."
         )
         
     return metrics

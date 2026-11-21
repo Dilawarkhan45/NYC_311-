@@ -1,6 +1,9 @@
 {
-  "total_records": 7404,
-  "passing_records": 7404,
+  "dataset_name": "NYC 311 Service Requests (2010 - 2019)",
+  "author": "Dilawar khan (TRN-2026-000961)",
+  "date": "17 Nov 2026",
+  "total_records": 17502,
+  "passing_records": 17502,
   "failed_records": 0,
   "validation_pass_rate": 1.0,
   "min_pass_rate_threshold": 0.95,
@@ -9,5 +12,6 @@
   "critical_null_violations": 0,
   "negative_duration_violations": 0,
   "out_of_bounds_coordinate_violations": 0,
+  "open_tickets_count": 392,
   "quality_gate_passed": true
 }

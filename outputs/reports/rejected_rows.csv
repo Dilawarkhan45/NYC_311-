@@ -1,0 +1,11 @@
+unique_key,created_date,closed_date,resolution_hours,agency,rejection_reason
+25462501,2013-05-01,2013-04-24 16:00:16,-151.99555555555557,DOHMH,Closed date earlier than created date (negative duration)
+27759888,2014-04-01,2014-03-14 09:29:48,-422.50333333333333,DOHMH,Closed date earlier than created date (negative duration)
+28601802,2014-08-01,2014-07-21 16:23:53,-247.60194444444446,DOHMH,Closed date earlier than created date (negative duration)
+30985669,2015-07-01,2015-06-29 10:09:45,-37.8375,DOHMH,Closed date earlier than created date (negative duration)
+33487136,2016-06-01,2016-05-13 10:51:16,-445.1455555555556,DOHMH,Closed date earlier than created date (negative duration)
+33492311,2016-06-01,2016-05-25 00:00:00,-168.0,DOHMH,Closed date earlier than created date (negative duration)
+33986127,2016-08-01,2016-07-26 14:32:25,-129.4597222222222,DOHMH,Closed date earlier than created date (negative duration)
+36079074,2017-05-01,2017-04-20 15:09:07,-248.84805555555556,DOHMH,Closed date earlier than created date (negative duration)
+36844070,2017-08-01,2017-07-20 13:12:30,-274.7916666666667,DOHMH,Closed date earlier than created date (negative duration)
+37586508,2017-11-01,2017-09-29 17:24:32,-774.5911111111111,DOHMH,Closed date earlier than created date (negative duration)
