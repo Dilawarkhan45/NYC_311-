@@ -107,15 +107,97 @@ def predict_records(input_path: str, output_path: str = DEFAULT_OUTPUT_PATH, mod
     print("-----------------------------------\n")
     return output_df
 
+def predict_single(
+    agency: str,
+    complaint_type: str,
+    borough: str = "MANHATTAN",
+    latitude: float = 40.7128,
+    longitude: float = -74.0060,
+    created_hour: int = 12,
+    created_day_of_week: int = 0,
+    channel: str = "PHONE",
+    model_path: str = DEFAULT_MODEL_PATH
+):
+    """Scores a single 311 service request provided via CLI flags."""
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model artifact not found at {model_path}. Run 'python src/train.py' first.")
+    
+    # Calculate Haversine distance to NYC City Hall (40.7128, -74.0060)
+    lat1, lon1 = np.radians(40.7128), np.radians(-74.0060)
+    lat2, lon2 = np.radians(latitude), np.radians(longitude)
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    a = np.sin(dlat / 2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0)**2
+    c = 2.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
+    distance_km = float(6371.0088 * c)
+    
+    is_weekend = 1 if created_day_of_week >= 5 else 0
+    
+    record = pd.DataFrame([{
+        "agency": str(agency).upper().strip(),
+        "complaint_type": str(complaint_type).upper().strip(),
+        "borough": str(borough).upper().strip(),
+        "open_data_channel_type": str(channel).upper().strip(),
+        "created_hour": int(created_hour),
+        "created_day_of_week": int(created_day_of_week),
+        "is_weekend": is_weekend,
+        "distance_to_center_km": distance_km,
+        "latitude": float(latitude),
+        "longitude": float(longitude)
+    }])
+    
+    validate_input_schema(record)
+    pipeline = joblib.load(model_path)
+    pred_raw = pipeline.predict(record[REQUIRED_FEATURES])[0]
+    pred_hours = max(0.0, float(pred_raw))
+    pred_days = pred_hours / 24.0
+    
+    print("==========================================================================")
+    print("NYC 311 SERVICE REQUEST RESOLUTION PREDICTION (SINGLE TICKET INFERENCE)")
+    print("==========================================================================")
+    print(f"Agency:                 {agency.upper()}")
+    print(f"Complaint Type:         {complaint_type.upper()}")
+    print(f"Borough:                {borough.upper()}")
+    print(f"Coordinates:            ({latitude}, {longitude}) -> {distance_km:.2f} km to City Hall")
+    print(f"Submission Time:        Hour {created_hour}:00 | Day-of-Week: {created_day_of_week} (Weekend: {bool(is_weekend)})")
+    print("--------------------------------------------------------------------------")
+    print(f"Predicted Resolution:   {pred_hours:.2f} Hours (~{pred_days:.2f} Days)")
+    print("==========================================================================\n")
+    return pred_hours
+
 def main():
-    parser = argparse.ArgumentParser(description="NYC 311 Resolution Duration Batch Inference")
-    parser.add_argument("--input", type=str, default=os.path.join(PROJECT_ROOT, "data", "cleaned", "cleaned_311_data.csv"), help="Path to input CSV")
+    parser = argparse.ArgumentParser(description="NYC 311 Resolution Duration Batch & Single Inference")
+    parser.add_argument("--input", type=str, default=None, help="Path to input CSV for batch scoring")
     parser.add_argument("--output", type=str, default=DEFAULT_OUTPUT_PATH, help="Path for output predictions CSV")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL_PATH, help="Path to joblib pipeline")
     parser.add_argument("--importance", action="store_true", help="Print feature importance analysis")
+    
+    # Single-ticket flags
+    parser.add_argument("--agency", type=str, default=None, help="Agency code (e.g. NYPD, HPD, DOT)")
+    parser.add_argument("--complaint", type=str, default=None, help="Complaint type (e.g. 'Noise - Residential')")
+    parser.add_argument("--borough", type=str, default="MANHATTAN", help="Borough (e.g. BROOKLYN, MANHATTAN)")
+    parser.add_argument("--channel", type=str, default="PHONE", help="Channel (e.g. PHONE, ONLINE, MOBILE)")
+    parser.add_argument("--lat", type=float, default=40.7128, help="Latitude")
+    parser.add_argument("--lon", type=float, default=-74.0060, help="Longitude")
+    parser.add_argument("--hour", type=int, default=12, help="Filing hour of day (0-23)")
+    parser.add_argument("--day", type=int, default=0, help="Filing day of week (0=Mon, 6=Sun)")
+    parser.add_argument("--month", type=int, default=7, help="Filing month (1-12, optional)")
     args = parser.parse_args()
     
-    predict_records(args.input, args.output, args.model, args.importance)
+    if args.agency and args.complaint:
+        predict_single(
+            agency=args.agency,
+            complaint_type=args.complaint,
+            borough=args.borough,
+            latitude=args.lat,
+            longitude=args.lon,
+            created_hour=args.hour,
+            created_day_of_week=args.day,
+            channel=args.channel,
+            model_path=args.model
+        )
+    else:
+        input_csv = args.input if args.input else os.path.join(PROJECT_ROOT, "data", "cleaned", "cleaned_311_data.csv")
+        predict_records(input_csv, args.output, args.model, args.importance)
 
 if __name__ == "__main__":
     main()
