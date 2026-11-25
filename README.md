@@ -2,8 +2,6 @@
 
 An end-to-end Python project that ingests NYC 311 service requests, produces a validated and enriched dataset, predicts resolution time, and explores database indexing and systems-design concepts.
 
-**Author:** Dilawar Khan  
-**Roll number:** TRN-2026-000961  
 **Data source:** [NYC 311 Service Requests from 2010 to 2019](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-2019/76ig-c548)
 
 ---
