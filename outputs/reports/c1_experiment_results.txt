@@ -1,0 +1,49 @@
+==========================================================================
+PART C1: SOCIAL FEED QUERY OPTIMIZATION & FEED RANKER EXPERIMENT
+Author: Dilawar khan | Roll: TRN-2026-000961 | Date: 17 Nov 2026
+==========================================================================
+Timestamp: 2026-11-24 20:43:25
+Database scale: 500 users | 5,000 follow edges | 50,000 posts
+
+--- 1. BENCHMARK WITHOUT INDEX (FULL TABLE SCAN) ---
+  EXPLAIN: (5, 0, 216, 'SCAN p')
+  EXPLAIN: (7, 0, 45, 'SEARCH f USING COVERING INDEX sqlite_autoindex_follows_1 (follower_id=? AND followee_id=?)')
+  EXPLAIN: (26, 0, 0, 'USE TEMP B-TREE FOR ORDER BY')
+Execution Time (Unindexed): 50.632 ms (Mean over 10 runs)
+
+--- 2. BENCHMARK WITH COMPOSITE INDEXES ---
+  EXPLAIN: (6, 0, 56, 'SEARCH f USING COVERING INDEX idx_follows_follower (follower_id=?)')
+  EXPLAIN: (10, 0, 62, 'SEARCH p USING INDEX idx_posts_author_created (author_id=?)')
+  EXPLAIN: (30, 0, 0, 'USE TEMP B-TREE FOR ORDER BY')
+Execution Time (Indexed): 1.011 ms (Mean over 10 runs)
+Query Acceleration / Speedup: 50.1x faster with index!
+
+--- 3. BONUS CHALLENGE (+2): TINY FEED RANKER ---
+Ranking Function: score = (likes_count * 0.4) + (recency_decay * 0.6)
+Ranking Compute Latency: 4.268 ms for 200 candidates
+
+Top 10 Ranked Feed Items for User 1:
+Rank  Score      PostID   Author   Likes    Age (hrs)  Content
+---------------------------------------------------------------------------
+1     1197.51    42117    17       1500     0.1        Post content #42117
+2     1193.51    42118    51       1490     0.1        Post content #42118
+3     1189.91    39577    315      1481     0.1        Post content #39577
+4     1189.91    14821    82       1481     0.1        Post content #14821
+5     1188.31    38069    2        1477     0.1        Post content #38069
+6     1183.51    3102     62       1465     0.1        Post content #3102
+7     1179.11    46499    14       1454     0.1        Post content #46499
+8     1178.31    20849    486      1452     0.1        Post content #20849
+9     1175.51    46732    45       1445     0.1        Post content #46732
+10    1175.51    1237     98       1445     0.1        Post content #1237
+
+--- 4. CACHING & ARCHITECTURAL SUMMARY ---
+1. Indexing Impact: The composite index on (author_id, created_at DESC) transforms a high-cost
+   table scan (SCAN TABLE posts) with B-tree temporary sorting into an indexed B-tree search
+   (SEARCH posts USING INDEX idx_posts_author_created), yielding a massive query speedup.
+2. Fan-out on Write vs. Fan-out on Read:
+   - Fan-out on Read (Current experiment): Computes the feed dynamically at query time by joining
+     the follows table. Simple writes, but high read latency at scale.
+   - Fan-out on Write (Push Model): When an author posts, a background queue pushes the post ID
+     into the precomputed feed caches (e.g. Redis Sorted Sets) of all active followers.
+   - Hybrid Strategy: Standard users use Fan-out on Write; high-follower celebrity accounts
+     (>100k followers) use Fan-out on Read to avoid catastrophic write amplification.

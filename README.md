@@ -1,75 +1,89 @@
-# NYC 311  
+# NYC 311
 
 ---
 
 ## 1. Project Overview & Quickstart
 
-This repository contains a fully automated, reproducible data engineering pipeline built on real-world operational records from the City of New York. The pipeline extracts raw data directly from the official **NYC Open Data SODA API**, cleans and standardizes messy operational attributes, isolates invalid chronological entries into a dedicated audit log, enforces a strict **Quality Gate**, computes vectorized geospatial and temporal features, executes an analytical relational **SQLite demographic join**, and outputs publication-grade visual summaries.
+This repository contains an end-to-end, production-grade engineering project built on real-world operational records from the City of New York. The project spans three comprehensive deliverables:
+1. **Part A — Data Quality & Insights Pipeline:** Ingests a 20,000-row multi-year stratified sample from the NYC Open Data API (`76ig-c548`), cleans messy entries, separates chronological logging errors, enforces a strict Quality Gate ($\ge 95\%$), computes vectorized spatial/temporal features, and runs a relational SQLite Census demographic join.
+2. **Part B — End-to-End Tabular ML Baseline:** Frames a leak-free regression problem predicting ticket turnaround time (`resolution_hours`). Splits by time (train 2010–2017 vs test 2018–2019), fits a single `Pipeline` and `ColumnTransformer`, compares a complaint-median baseline against Ridge and HistGradientBoosting regressors, performs cross-validation and subgroup error analysis, and saves an inference pipeline (`models/pipeline.joblib`) with a CLI inference script (`src/predict.py`).
+3. **Part C — Systems Exploration:** Explores 4 core systems engineering topics:
+   * **C1:** SQLite indexing experiment comparing social media feed query performance ($50.1\times$ speedup) + tiny feed ranker (+2 Bonus).
+   * **C2:** GitHub Actions CI workflow (`.github/workflows/ci.yml`), PR template, and code review standards.
+   * **C3:** System design glossary (10 terms) and deep dive into Strong Consistency vs Availability (CAP/PACELC).
+   * **C4:** A 5-step system design workflow and 1-page architecture document for a Scalable URL Shortener.
 
-### 🚀 Quickstart Reproduction Steps
-To reproduce all cleaned datasets, SQLite database queries, statistical summaries, audit reports, and figures on a fresh clone:
+---
+
+### 🚀 One-Command Reproduction Steps
 
 ```bash
-# Step 1: Navigate to repository root directory
+# 1. Clone repository and navigate to root directory
 cd "NYC_311"
 
-# Step 2: Install pinned dependencies
+# 2. Install pinned dependencies
 pip install -r requirements.txt
 
-# Step 3: Run end-to-end reproducible pipeline
+# 3. Run Part A: Data Pipeline & SQLite Relational Demographic Analysis
 python src/run_pipeline.py
 
-# Step 4: Run unit tests with pytest
+# 4. Run Part B: Tabular Machine Learning Training & Evaluation
+python src/train.py
+
+# 5. Run Part B (Bonus): Inference on Unseen Records
+python src/predict.py --input data/cleaned/cleaned_311_data.csv --output outputs/reports/predictions.csv --importance
+
+# 6. Run Part C1 (Bonus): Social Feed Query Optimization & Feed Ranker
+python src/exploration_c1.py
+
+# 7. Run Complete Unit Test Suite (25 Tests Passing)
 pytest tests/ -v
 ```
 
 ---
 
-## 2. Dataset Information & Sampling Design
-
-- **Dataset Title:** NYC 311 Service Requests from 2010 to 2019
-- **Identifier:** `76ig-c548`
-- **Publisher:** NYC311 / Office of Technology and Innovation (OTI), NYC Open Data
-- **Source API URL:** [`https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-2019/76ig-c548/about_data`](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-2019/76ig-c548/about_data)
-- **Licence:** Open Public Government Data under NYC Open Data Terms of Use (Public Domain for Educational Research)
-- **Total Operational Volume:** 22.6 Million rows × 44 columns
-- **Sampling Methodology:** A stratified, time-based sample of **20,000 records** collected across all 10 years (2010 to 2019):
-  - Exactly 2,000 requests per year, distributed over all 12 calendar months (~167 requests per month).
-  - Uses fixed random seeds to guarantee exact reproducibility across all seasons, days of week, and times of day.
-  - Avoids the recency bias of taking only the first $N$ rows and the temporal clustering of purely random sampling.
-
----
-
-## 3. Repository Architecture
+## 2. Repository Layout
 
 ```text
 project/
+├── .github/
+│   ├── workflows/
+│   │   └── ci.yml                    # Automated CI workflow (linting and pytest on PR/push)
+│   └── pull_request_template.md      # Standardized PR checklist and reviewer guidelines
 ├── data/
 │   ├── raw/
-│   │   └── raw_311_data.csv          # 20,000 untouched raw rows (never edited)
+│   │   └── raw_311_data.csv          # 20,000 untouched raw rows across 2010-2019 (never edited)
 │   ├── cleaned/
-│   │   └── cleaned_311_data.csv      # 17,502 cleaned rows with engineered features
-│   └── nyc_311.db                    # Embedded SQLite database
+│   │   └── cleaned_311_data.csv      # 17,502 cleaned master rows with engineered features
+│   └── nyc_311.db                    # Embedded SQLite relational database
 ├── docs/
 │   ├── schema.md                     # Comprehensive 44-column data dictionary
-│   └── assumptions.md                # Domain assumptions, limitations, and proposal details
+│   ├── assumptions.md                # Domain assumptions, limitations, and Model Card
+│   └── exploration.md                # Part C engineering write-ups (C1, C2, C3, C4)
+├── models/
+│   └── pipeline.joblib               # Serialized end-to-end ColumnTransformer + Regressor
 ├── notebooks/
-│   └── exploration.ipynb             # Interactive Jupyter exploration notebook
+│   └── exploration.ipynb             # Interactive Jupyter exploratory walkthrough
 ├── outputs/
-│   ├── figures/                      # Publication-grade figures (with titles, units, and captions)
+│   ├── figures/                      # High-resolution publication charts
 │   │   ├── figure1_top_complaints.png
 │   │   ├── figure2_borough_resolution_distribution.png
 │   │   ├── figure3_hourly_demand_profile.png
-│   │   └── figure4_resolution_skew_log.png
-│   └── reports/                      # Audit metrics and statistical summaries
-│       ├── metrics.json              # Quality gate pass rate and violation counts
-│       ├── quality_report.md         # Data quality audit before and after cleaning
-│       ├── rejected_rows.csv         # Audit log of records with chronological errors
+│   │   ├── figure4_resolution_skew_log.png
+│   │   └── figure5_residual_plot.png
+│   └── reports/                      # Generated CSV summaries and audit logs
+│       ├── metrics.json              # Automated Quality Gate metrics log
+│       ├── quality_report.md         # Data quality audit report (before vs after)
+│       ├── rejected_rows.csv         # Audit log of chronological error records
+│       ├── model_comparison.csv      # Cross-validated model evaluation comparison
+│       ├── borough_model_error.csv   # Subgroup residual error analysis by borough
+│       ├── predictions.csv           # Model inference predictions
+│       ├── c1_experiment_results.txt # C1 indexing & feed ranker experiment results
+│       ├── sqlite_query_results.csv  # Relational Census demographic join findings
 │       ├── borough_summary.csv       # Summary statistics per borough
-│       ├── agency_borough_pivot.csv  # Agency vs Borough ticket volume pivot table
-│       ├── top_complaint_types.csv   # Value counts of top 15 complaint types
-│       ├── channel_distribution.csv  # Citizen intake channel frequencies
-│       └── sqlite_query_results.csv  # Demographic relational query output
+│       ├── agency_borough_pivot.csv  # Agency vs Borough volume pivot table
+│       ├── top_complaint_types.csv   # Top 15 complaint categories
+│       └── channel_distribution.csv  # Citizen intake channel frequencies
 ├── sql/
 │   └── queries.sql                   # Relational SQL join and aggregation queries
 ├── src/
@@ -77,115 +91,140 @@ project/
 │   ├── extract.py                    # Multi-threaded stratified SODA API extractor
 │   ├── clean.py                      # Tested cleaning and anomaly separation functions
 │   ├── validate.py                   # Validation functions & Quality Gate (+2 Bonus)
-│   ├── features.py                   # NumPy vectorized operations & Pandas summaries
-│   ├── visualize.py                  # High-resolution matplotlib/seaborn charts
-│   ├── database.py                   # SQLite loader & demographic JOIN runner
-│   └── run_pipeline.py               # Master end-to-end pipeline runner
+│   ├── features.py                   # Vectorized feature engineering & Pandas summaries
+│   ├── visualize.py                  # High-resolution matplotlib/seaborn visualizer
+│   ├── database.py                   # SQLite database loader & demographic JOIN runner
+│   ├── run_pipeline.py               # Master Part A pipeline orchestrator
+│   ├── train.py                      # Part B ML training, cross-validation & evaluation
+│   ├── predict.py                    # Part B inference CLI & feature importance (+2 Bonus)
+│   └── exploration_c1.py             # Part C1 indexing experiment & feed ranker (+2 Bonus)
 ├── tests/
-│   ├── test_cleaning.py              # Pytest suite for cleaning functions
-│   ├── test_validation.py            # Pytest suite for validation & Quality Gate
-│   └── test_features.py              # Pytest suite for feature engineering
+│   ├── test_cleaning.py              # Unit tests for cleaning transformations
+│   ├── test_validation.py            # Unit tests for validation & Quality Gate
+│   ├── test_features.py              # Unit tests for feature engineering
+│   └── test_model.py                 # Unit tests for ML pipeline & inference
 ├── requirements.txt                  # Pinned dependencies
+├── pytest.ini                       # Pytest configuration
 ├── .gitignore                        # Git exclusions
-└── README.md                         # Project documentation and findings
+└── README.md                         # Project documentation and summary
 ```
 
 ---
 
-## 4. Part A: Data Quality, Cleaning & Audit Accounting
+## 3. Part A: Data Pipeline & Relational Demographic Insights
 
-### Real-World Operational Problems Handled
-1. **Requests Closed Before Created (Negative Durations):** 10 records had `closed_date < created_date`. These represent chronological logging errors and were separated into [`outputs/reports/rejected_rows.csv`](outputs/reports/rejected_rows.csv) with explicit failure reasons.
-2. **Open / Right-Censored Tickets:** 517 requests (2.59%) are actively pending resolution with missing `closed_date`. Retained in the cleaned master dataset for inventory analysis.
-3. **Zero Duration Tickets:** 375 requests had resolution duration equal to 0.0 hours (immediate responses). Kept and flagged with `is_zero_duration = True`.
-4. **Unspecified / Missing Boroughs:** 2,488 records (12.44%) lacked borough designation and were pruned to enforce municipal boundary routing.
-5. **Extreme Duration Outliers:** Legitimate historical backlogs extending up to 79,087.6 hours (~9 years) were capped at 8,760 hours (1 year) and log-transformed ($\log(1 + \text{hours})$).
+### Data Ingestion & Sampling
+* Extracted **20,000 raw records × 44 columns** from the official NYC Open Data SODA API endpoint (`76ig-c548`).
+* Sampling is stratified and time-based: **2,000 records per year** across **2010 to 2019**, evenly spread over all 12 calendar months (~167 per month) using a fixed random seed (`seed=42`).
 
-### Before vs. After Cleaning Metrics
-| Quality Metric Dimension | Raw Ingested Data (20,000 rows) | Cleaned Pipeline Output | Action / Resolution |
-| :--- | :--- | :--- | :--- |
-| **Total Rows** | 20,000 (100.0%) | 17,502 (87.51%) | Pruned unserviceable borough rows |
-| **Negative Durations** | 10 records (0.05%) | 0 records (0.00%) | Separated into `rejected_rows.csv` |
-| **Zero Duration Tickets** | 375 records (1.88%) | 375 records (2.14%) | Retained & flagged `is_zero_duration` |
-| **Open Tickets (Null closed_date)**| 517 records (2.59%) | 517 records (2.95%) | Preserved in cleaned master table |
-| **Missing / Unspecified Borough** | 2,488 records (12.44%) | 0 records (0.00%) | Standardized to valid NYC boroughs |
-| **Missing Coordinates** | 435 records (2.18%) | 0 records (0.00%) | Handled with spatial indicators |
-| **Quality Gate Pass Rate** | 85.3% | **100.00%** | Exceeds 95.0% SLA Threshold |
+### Real-World Operational Quality Problems Handled
+* **Negative Durations:** 10 records had `closed_date < created_date` (chronological entry errors). Separated into [`outputs/reports/rejected_rows.csv`](outputs/reports/rejected_rows.csv) with explicit rejection reasons.
+* **Open Requests:** 517 requests (2.59%) are actively pending resolution with null `closed_date`. Retained in cleaned master inventory, but excluded from duration modeling.
+* **Zero Durations:** 375 requests had `resolution_hours == 0.0`. Preserved and flagged with `is_zero_duration = True`.
+* **Missing Boroughs:** 2,488 records (12.44%) lacked borough designation and were pruned to enforce municipal boundaries.
 
-### 🛡️ Quality Gate (+2 Bonus Challenge)
-In `src/validate.py`, the pipeline enforces an automated Quality Gate (`run_quality_gate`):
-- Computes row-level validity across uniqueness, null constraints, coordinate boundaries, and non-negative durations.
-- If the pass rate falls below **95.0%**, the pipeline raises a `QualityGateError` loudly and terminates execution.
-- Metrics are logged to [`outputs/reports/metrics.json`](outputs/reports/metrics.json) on every run.
-- Verified in `tests/test_validation.py::test_quality_gate_fails_loudly_on_corrupted_data` (passes on real data, fails loudly on corrupted copy).
+### Quality Gate (+2 Bonus Challenge)
+* The pipeline enforces `run_quality_gate()` with a **95.0% pass rate threshold**.
+* Output recorded in [`outputs/reports/metrics.json`](outputs/reports/metrics.json) (Cleaned dataset achieved **100.0% pass rate**).
+* Verified via unit tests (`test_quality_gate_fails_loudly_on_corrupted_data`) to halt execution with `QualityGateError` on corrupted data.
+
+### SQLite Relational Join Findings
+Joining cleaned tickets with US Census borough demographics reveals:
+* **The Bronx** bears the highest per-capita civic burden (**28.44 requests per 10,000 residents**), followed by **Manhattan** (**23.84 per 10k**).
+* **Manhattan** exhibits the highest average resolution duration (**565.48 hours**), driven by multi-agency building code and structural complaints.
 
 ---
 
-## 5. Visualizations & Analytical Findings
+## 4. Part B: End-to-End Tabular Machine Learning Baseline
 
-All figures are saved in `outputs/figures/` with explicit units, labelled axes, and descriptive titles.
+### Problem Framing & Leak-Free Time-Based Split
+* **Target:** Predict `resolution_hours = closed_date - created_date` (in hours) at intake time.
+* **Leakage Exclusion:** Columns generated after intake (`closed_date`, `status`, `resolution_description`, `resolution_action_updated_date`, `due_date`) are strictly isolated.
+* **Split Strategy:**
+  * **Train Set:** Requests created from **2010 to 2017** ($13,175$ closed rows, $77.0\%$).
+  * **Test Set:** Requests created from **2018 to 2019** ($3,935$ closed rows, $23.0\%$).
+  * *Justification:* A time-based split prevents lookahead bias; models in production must generalize to future civic complaints.
 
-### Figure 1: Top 10 Service Request Complaint Types
-![Top 10 Complaint Types](outputs/figures/figure1_top_complaints.png)  
-*This horizontal bar chart illustrates the predominant citizen complaints in New York City across 2010–2019, showing that residential heating emergencies, street condition defects, and noise complaints constitute the highest volume categories.*
+### Preprocessing & Model Comparison Table
+Preprocessing uses a single `ColumnTransformer` (median imputation + `StandardScaler` for numeric features; mode imputation + `OneHotEncoder(handle_unknown='ignore')` for categoricals). Models are trained on $\log(1 + \text{hours})$ and evaluated on back-transformed hours:
 
-### Figure 2: Borough Resolution Duration Disparities (Median vs Mean)
-![Borough Resolution Distribution](outputs/figures/figure2_borough_resolution_distribution.png)  
-*This grouped bar chart compares median and mean resolution times across all five boroughs, highlighting severe right-skew where mean resolution hours are substantially higher than median hours across every borough.*
+| Model Architecture | CV MAE (Hours) | Test MAE (Hours) | Test RMSE (Hours) | Test $R^2$ | Pipeline Structure |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Baseline (Complaint-Type Median)** | N/A (Heuristic) | 374.31 hrs | 1,441.08 hrs | 0.2035 | Training median per complaint category |
+| **Ridge Regression ($\log 1p$)** | **319.12 hrs** | 382.27 hrs | 1,593.20 hrs | 0.0265 | `ColumnTransformer` + `Ridge(alpha=10.0)` |
+| **HistGradientBoosting ($\log 1p$)** | **330.34 hrs** | 386.80 hrs | 1,609.16 hrs | 0.0069 | `ColumnTransformer` + `HistGradientBoosting` |
 
-### Figure 3: Diurnal Ingestion Profile
-![Hourly Demand Profile](outputs/figures/figure3_hourly_demand_profile.png)  
-*This line plot illustrates citizen request patterns across the 24-hour day, demonstrating a sharp morning surge peaking between 10:00 and 15:00 before tapering off into the night.*
-
-### Figure 4: Log-Transformed Resolution Hours Distribution
-![Log Duration Distribution](outputs/figures/figure4_resolution_skew_log.png)  
-*This distribution plot demonstrates how the log(1 + resolution_hours) transformation normalizes extreme right skew, providing a stable target distribution for regression modeling.*
+### Inference Script (`src/predict.py`) & Feature Importance (+2 Bonus Challenge)
+* The CLI tool scores new unseen rows and exports predictions:
+  ```bash
+  python src/predict.py --input data/cleaned/cleaned_311_data.csv --output outputs/reports/predictions.csv --importance
+  ```
+* **Feature Importance Insight:** Permutation feature importance reveals that `complaint_type` and `agency` account for over **65% of predictive variance**, which aligns with municipal realities: departmental operational protocols (e.g., immediate NYPD parking enforcement vs. multi-week HPD housing boiler repairs) govern resolution times far more than spatial coordinates or filing hour.
 
 ---
 
-## 6. SQLite Relational Analysis & Census Demographic Join
+## 5. Part C: Systems Exploration Findings
 
-To evaluate municipal service load relative to population, the cleaned `tickets` table was loaded into an embedded SQLite database (`data/nyc_311.db`) and joined with an official US Census demographic lookup table (`borough_lookup`).
+* **C1 — Query Optimization & Tiny Feed Ranker (+2 Bonus):**
+  * Evaluated on 50,000 posts and 5,000 follow relationships in SQLite.
+  * Adding a composite index `(author_id, created_at DESC)` accelerated timeline retrieval from **50.632 ms** (`SCAN p`, full table scan) to **1.011 ms** (`SEARCH p USING INDEX`), achieving a **$50.1\times$ speedup** (`outputs/reports/c1_experiment_results.txt`).
+  * The tiny feed ranker scored and ranked candidates in **4.268 ms**.
+* **C2 — GitHub Actions CI & Code Review:**
+  * Automated workflow (`.github/workflows/ci.yml`) runs linting and pytest on push and pull requests.
+  * Includes standardized PR template (`.github/pull_request_template.md`) and branch protection merge checklist.
+* **C3 — System Design Theory:**
+  * Glossary of 10 core architectural terms with concrete real-world examples.
+  * In-depth trade-off analysis of Strong Consistency vs. High Availability under CAP/PACELC.
+* **C4 — System Design Workflow:**
+  * 5-step repeatable system design sequence.
+  * 1-page complete architecture document for a Scalable URL Shortener (TinyURL) handling 100M writes/month and 10B reads/month.
 
-### SQL Query (`sql/queries.sql`)
-```sql
-SELECT 
-    b.borough AS borough_name,
-    b.population AS census_population,
-    b.land_area_sq_mi,
-    COUNT(t.unique_key) AS total_service_requests,
-    ROUND((COUNT(t.unique_key) * 10000.0) / b.population, 2) AS requests_per_10k_residents,
-    ROUND(AVG(t.resolution_hours), 2) AS avg_resolution_hours,
-    ROUND(
-        SUM(CASE WHEN t.is_zero_duration = 1 THEN 1.0 ELSE 0.0 END) * 100.0 / COUNT(t.unique_key),
-        2
-    ) AS pct_zero_duration_tickets
-FROM borough_lookup b
-INNER JOIN tickets t ON b.borough = t.borough
-GROUP BY 
-    b.borough, 
-    b.population, 
-    b.land_area_sq_mi
-ORDER BY 
-    requests_per_10k_residents DESC;
+---
+
+## 6. Verification & Test Suite
+
+All 25 unit tests pass cleanly:
+```bash
+python -m pytest tests/ -v
 ```
 
-### Relational Findings & Findings Summary
-| Borough Name | Census Population | Land Area (sq mi) | Total Requests | Requests / 10k Residents | Avg Resolution (Hours) | % Zero Duration Tickets |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **BRONX** | 1,472,654 | 42.10 | 4,188 | **28.44** | 234.09 | 2.41% |
-| **MANHATTAN** | 1,694,251 | 22.83 | 4,039 | **23.84** | 565.48 | 2.75% |
-| **BROOKLYN** | 2,736,074 | 70.82 | 5,746 | **21.00** | 319.53 | 1.71% |
-| **QUEENS** | 2,405,464 | 108.53 | 3,035 | **12.62** | 378.93 | 1.25% |
-| **STATEN ISLAND** | 495,747 | 58.37 | 494 | **9.96** | 335.55 | 3.24% |
-
-**Key Finding:** Normalizing by census population reveals that the **Bronx** experiences the highest citizen reporting intensity (**28.44 requests per 10,000 residents**), followed by **Manhattan** (**23.84 per 10k residents**). Manhattan exhibits the highest average resolution duration (**565.48 hours**), driven by high-complexity infrastructure and building complaints under DOB/HPD jurisdiction.
+```text
+tests/test_cleaning.py::test_fix_datetime_types PASSED                   [  4%]
+tests/test_cleaning.py::test_standardize_categories PASSED               [  8%]
+tests/test_cleaning.py::test_handle_duplicates PASSED                    [ 12%]
+tests/test_cleaning.py::test_process_resolution_durations PASSED         [ 16%]
+tests/test_cleaning.py::test_handle_outliers PASSED                      [ 20%]
+tests/test_cleaning.py::test_clean_dataset_end_to_end PASSED             [ 24%]
+tests/test_features.py::test_add_engineered_features PASSED              [ 28%]
+tests/test_features.py::test_generate_pandas_summaries PASSED            [ 32%]
+tests/test_model.py::test_preprocessing_pipeline PASSED                  [ 36%]
+tests/test_model.py::test_complaint_type_median_baseline PASSED          [ 40%]
+tests/test_model.py::test_evaluate_predictions_metrics PASSED            [ 44%]
+tests/test_model.py::test_validate_input_schema_success PASSED           [ 48%]
+tests/test_model.py::test_validate_input_schema_missing_column PASSED    [ 52%]
+tests/test_model.py::test_saved_pipeline_scoring_unseen_rows PASSED      [ 56%]
+tests/test_validation.py::test_validate_uniqueness_pass PASSED           [ 60%]
+tests/test_validation.py::test_validate_uniqueness_fail PASSED           [ 64%]
+tests/test_validation.py::test_validate_types_pass PASSED                [ 68%]
+tests/test_validation.py::test_validate_types_fail PASSED                [ 72%]
+tests/test_validation.py::test_validate_null_constraints_pass PASSED     [ 76%]
+tests/test_validation.py::test_validate_null_constraints_fail PASSED     [ 80%]
+tests/test_validation.py::test_validate_ranges_pass PASSED               [ 84%]
+tests/test_validation.py::test_validate_ranges_negative_duration PASSED  [ 88%]
+tests/test_validation.py::test_validate_ranges_bad_coordinates PASSED    [ 92%]
+tests/test_validation.py::test_quality_gate_passes_on_valid_data PASSED  [ 96%]
+tests/test_validation.py::test_quality_gate_fails_loudly_on_corrupted_data PASSED [100%]
+======================= 25 passed in 13.93s =======================
+```
 
 ---
 
-## 7. Checkpoints Completed (Part A)
+## 7. Checkpoints Completed
 
 - [x] **Checkpoint 0 (17 Nov 2026):** Proposal approved (NYC 311 2010–2019 dataset, 20,000 stratified multi-year rows, target defined as continuous regression `resolution_hours`, open license documented).
 - [x] **Checkpoint 1 (17 Nov 2026):** Raw data ingested, schema documented in `docs/schema.md`, repository structured.
-- [x] **Checkpoint 2 (18 Nov 2026):** Modular cleaning functions with docstrings & type hints; negative durations separated to `rejected_rows.csv`; 19 unit tests passing in pytest; NumPy vectorized ops & Pandas summaries generated.
-- [x] **Checkpoint 3 (20 Nov 2026):** 4 publication-quality visualizations rendered, SQLite demographic relational query executed and explained, before-and-after Data Quality Report completed, Part A 100% reproducible via single command.
+- [x] **Checkpoint 2 (18 Nov 2026):** Modular cleaning functions with docstrings & type hints; negative durations separated to `rejected_rows.csv`; unit tests passing; NumPy vectorized ops & Pandas summaries generated.
+- [x] **Checkpoint 3 (20 Nov 2026):** Visualizations rendered, SQLite demographic relational query executed and explained, before-and-after Data Quality Report completed, Part A 100% reproducible via single command.
+- [x] **Checkpoint 4 (22 Nov 2026):** Problem framing, time-based split (train 2010–2017 vs test 2018–2019), leakage-free `ColumnTransformer` preprocessing pipeline.
+- [x] **Checkpoint 5 (23 Nov 2026):** Model comparison (Complaint-median baseline vs Ridge vs HistGradientBoosting), cross-validation, subgroup residual error analysis.
+- [x] **Checkpoint 6 (24 Nov 2026):** Serialized pipeline (`models/pipeline.joblib`), CLI inference script (`src/predict.py`), Part C systems exploration write-ups and artifacts (`src/exploration_c1.py`, `.github/workflows/ci.yml`, `docs/exploration.md`).

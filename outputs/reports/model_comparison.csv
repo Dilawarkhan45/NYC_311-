@@ -1,0 +1,4 @@
+Model,CV MAE (Hours),Test MAE (Hours),Test RMSE (Hours),Test R2,Pipeline Structure
+Baseline (Complaint-Type Median),N/A (Heuristic),374.31,1441.08,0.2035,Rule-based grouping on training median
+Ridge Regression (log1p),319.12,382.27,1593.2,0.0265,ColumnTransformer + Ridge(alpha=10.0)
+HistGradientBoosting (log1p),330.34,386.8,1609.16,0.0069,ColumnTransformer + HistGradientBoosting
